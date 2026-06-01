@@ -177,7 +177,17 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			const diffAlgorithm = this._configurationService.getValue<DiffAlgorithmName>('diffEditor.diffAlgorithm');
 			const quickDiffModelRef = this._quickDiffModelService.createQuickDiffModelReference(editorModel.modified.uri, { algorithm: diffAlgorithm });
 			if (!quickDiffModelRef) {
-				return constObservable(undefined);
+				// No quick diff model available (e.g., modified URI is not a text file, such as a
+				// git:// URI used by third-party extensions). Fall back to providing just the diff
+				// editor's own changes without additional quick diff information.
+				return observableFromEvent(diffEditor!.onDidUpdateDiff, () => {
+					const diffChanges = diffEditor!.getDiffComputationResult()?.changes2 ?? [];
+					return [{
+						original: editorModel.original.uri,
+						modified: editorModel.modified.uri,
+						changes: diffChanges.map(change => change as LineRangeMapping)
+					}];
+				});
 			}
 
 			toDispose.push(quickDiffModelRef);
