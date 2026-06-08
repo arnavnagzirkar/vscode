@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-q+WTr+fBXpLLE3++yWNaxT6BTWQtsKscoeIlynBRk4E=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-fR5yjKuVoCJUa3Ujg0rMOXCs7jCCE9qpIfZ6fTvv2rk=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -419,6 +419,8 @@
 		/** @type {any} */
 		let loadTimeout;
 		let styleVersion = 0;
+		/** @type {HTMLElement | null} */
+		let lastContextMenuTarget = null;
 
 		/** @type {Array<{ readonly message: any, transfer?: ArrayBuffer[] }>} */
 		let pendingMessages = [];
@@ -1178,6 +1180,8 @@
 
 						e.preventDefault();
 
+						lastContextMenuTarget = /** @type {HTMLElement | null} */ (e.target);
+
 						/** @type { Record<string, boolean>} */
 						let context = {};
 
@@ -1257,7 +1261,22 @@
 				if (!target) {
 					return;
 				}
-				assertIsDefined(target.contentDocument).execCommand(data);
+				const doc = assertIsDefined(target.contentDocument);
+				if (data === 'copy' && lastContextMenuTarget instanceof HTMLImageElement && doc.contains(lastContextMenuTarget)) {
+					const contentWindow = assertIsDefined(target.contentWindow);
+					const selection = contentWindow.getSelection();
+					if (!selection || selection.isCollapsed) {
+						// The contextmenu was triggered on an image with no text selection.
+						// Select the image so execCommand('copy') copies it to the clipboard.
+						const range = doc.createRange();
+						range.selectNode(lastContextMenuTarget);
+						if (selection) {
+							selection.removeAllRanges();
+							selection.addRange(range);
+						}
+					}
+				}
+				doc.execCommand(data);
 			});
 
 			/** @type {string | undefined} */
