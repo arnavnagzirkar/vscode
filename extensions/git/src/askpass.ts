@@ -108,7 +108,9 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 	}
 
 	async handleSSHAskpass(argv: string[]): Promise<string> {
-		// SSH (passphrase | authenticity)
+		// SSH (passphrase | authenticity | keyboard-interactive)
+		// The ssh-askpass.sh script passes $* unquoted, so SSH's single-argument
+		// prompt is word-split into argv[2..]. argv[3] is the second word.
 		const request = argv[3];
 
 		// passphrase
@@ -135,20 +137,35 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 			return await window.showInputBox(options) || '';
 		}
 
-		// authenticity
-		const host = argv[6].replace(/^["']+|["':]+$/g, '');
-		const fingerprint = argv[15];
+		// authenticity - "The authenticity of host 'hostname' can't be established..."
+		if (/authenticity/i.test(request)) {
+			const host = argv[6].replace(/^["']+|["':]+$/g, '');
+			const fingerprint = argv[15];
 
-		this.logger.trace(`[Askpass][handleSSHAskpass] request: ${request}, host: ${host}, fingerprint: ${fingerprint}`);
+			this.logger.trace(`[Askpass][handleSSHAskpass] request: ${request}, host: ${host}, fingerprint: ${fingerprint}`);
 
-		const options: QuickPickOptions = {
-			canPickMany: false,
-			ignoreFocusOut: true,
-			placeHolder: l10n.t('Are you sure you want to continue connecting?'),
-			title: l10n.t('"{0}" has fingerprint "{1}"', host ?? '', fingerprint ?? '')
+			const options: QuickPickOptions = {
+				canPickMany: false,
+				ignoreFocusOut: true,
+				placeHolder: l10n.t('Are you sure you want to continue connecting?'),
+				title: l10n.t('"{0}" has fingerprint "{1}"', host ?? '', fingerprint ?? '')
+			};
+			const items = [l10n.t('yes'), l10n.t('no')];
+			return await window.showQuickPick(items, options) ?? '';
+		}
+
+		// keyboard-interactive (e.g. YubiKey OTP, TOTP, or any custom server challenge)
+		const prompt = argv.slice(2).join(' ');
+		this.logger.trace(`[Askpass][handleSSHAskpass] keyboard-interactive request: ${prompt}`);
+
+		const options: InputBoxOptions = {
+			password: true,
+			placeHolder: prompt,
+			prompt: `SSH: ${prompt}`,
+			ignoreFocusOut: true
 		};
-		const items = [l10n.t('yes'), l10n.t('no')];
-		return await window.showQuickPick(items, options) ?? '';
+
+		return await window.showInputBox(options) || '';
 	}
 
 	getEnv(): { [key: string]: string } {
