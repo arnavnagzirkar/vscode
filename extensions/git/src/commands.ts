@@ -5650,9 +5650,22 @@ export class CommandCenter {
 							.split(/[\r\n]/)
 							.filter((line: string) => !!line);
 
-						message = hintLines.length > 0
-							? l10n.t('Git: {0}', err.stdout ? hintLines[hintLines.length - 1] : hintLines[0])
-							: l10n.t('Git error');
+						if (err.stdout) {
+							message = hintLines.length > 0
+								? l10n.t('Git: {0}', hintLines[hintLines.length - 1])
+								: l10n.t('Git error');
+						} else {
+							// Skip "warning:" lines to find the real error; if only warnings exist, use warning styling
+							const errorLine = hintLines.find(line => !/^warning:/i.test(line));
+							if (errorLine) {
+								message = l10n.t('Git: {0}', errorLine);
+							} else if (hintLines.length > 0) {
+								type = 'warning';
+								message = l10n.t('Git: {0}', hintLines[0]);
+							} else {
+								message = l10n.t('Git error');
+							}
+						}
 
 						break;
 					}
