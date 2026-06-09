@@ -2360,6 +2360,11 @@
           "command": "git.stageAllUntracked",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "inline@2"
+        },
+        {
+          "submenu": "git.stash",
+          "when": "scmProvider == git && (scmResourceGroup == workingTree || scmResourceGroup == index || scmResourceGroup == untracked)",
+          "group": "2_stash"
         }
       ],
       "scm/resourceFolder/context": [
@@ -2432,6 +2437,11 @@
           "command": "git.ignore",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "1_modification@3"
+        },
+        {
+          "submenu": "git.stash",
+          "when": "scmProvider == git && (scmResourceGroup == workingTree || scmResourceGroup == index || scmResourceGroup == untracked)",
+          "group": "2_stash"
         }
       ],
       "scm/resourceState/context": [
@@ -2664,6 +2674,11 @@
           "command": "git.ignore",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "1_modification@3"
+        },
+        {
+          "submenu": "git.stash",
+          "when": "scmProvider == git && (scmResourceGroup == workingTree || scmResourceGroup == index || scmResourceGroup == untracked)",
+          "group": "2_stash"
         }
       ],
       "scm/history/title": [
