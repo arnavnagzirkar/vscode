@@ -6,9 +6,15 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 export class RelativeWorkspacePathResolver {
-	public static asAbsoluteWorkspacePath(relativePath: string): string | undefined {
-		for (const root of vscode.workspace.workspaceFolders || []) {
-			const rootPrefixes = [`./${root.name}/`, `${root.name}/`, `.\\${root.name}\\`, `${root.name}\\`];
+	public static asAbsoluteWorkspacePath(relativePath: string, workspaceFolders: readonly vscode.WorkspaceFolder[] = vscode.workspace.workspaceFolders || []): string | undefined {
+		for (const root of workspaceFolders) {
+			// Only strip the workspace folder name prefix in multi-root workspaces.
+			// In single-root workspaces the path is always relative to the one root, so
+			// a path like `myFolder/...` should not be misinterpreted as referring to the
+			// workspace folder named `myFolder`.
+			const rootPrefixes = workspaceFolders.length > 1
+				? [`./${root.name}/`, `${root.name}/`, `.\\${root.name}\\`, `${root.name}\\`]
+				: [`./${root.name}/`, `.\\${root.name}\\`];
 			for (const rootPrefix of rootPrefixes) {
 				if (relativePath.startsWith(rootPrefix)) {
 					return path.join(root.uri.fsPath, relativePath.replace(rootPrefix, ''));
