@@ -21,6 +21,7 @@ export interface IShiftCommandOpts {
 	insertSpaces: boolean;
 	useTabStops: boolean;
 	autoIndent: EditorAutoIndentStrategy;
+	preserveAlignmentSpaces?: boolean;
 }
 
 const repeatCache: { [str: string]: string[] } = Object.create(null);
@@ -181,12 +182,39 @@ export class ShiftCommand implements ICommand {
 					continue;
 				}
 
+				let alignmentSpaces = '';
+				let shiftColumn = indentationEndIndex + 1;
+				if (this._opts.preserveAlignmentSpaces && indentationEndIndex > 0) {
+					if (!insertSpaces) {
+						// For tab indentation: alignment spaces are spaces after the last tab.
+						let lastTabIndex = -1;
+						for (let i = indentationEndIndex - 1; i >= 0; i--) {
+							if (lineText.charCodeAt(i) === CharCode.Tab) {
+								lastTabIndex = i;
+								break;
+							}
+						}
+						if (lastTabIndex !== -1) {
+							alignmentSpaces = lineText.substring(lastTabIndex + 1, indentationEndIndex);
+							shiftColumn = lastTabIndex + 2; // 1-based column after the last tab
+						}
+					} else {
+						// For space indentation: alignment spaces are spaces beyond the last full indent level.
+						const alignmentCount = indentationEndIndex % indentSize;
+						if (alignmentCount > 0) {
+							alignmentSpaces = lineText.substring(indentationEndIndex - alignmentCount, indentationEndIndex);
+							shiftColumn = indentationEndIndex - alignmentCount + 1;
+						}
+					}
+				}
+
 				let desiredIndent: string;
 				if (this._opts.isUnshift) {
-					desiredIndent = ShiftCommand.unshiftIndent(lineText, indentationEndIndex + 1, tabSize, indentSize, insertSpaces);
+					desiredIndent = ShiftCommand.unshiftIndent(lineText, shiftColumn, tabSize, indentSize, insertSpaces);
 				} else {
-					desiredIndent = ShiftCommand.shiftIndent(lineText, indentationEndIndex + 1, tabSize, indentSize, insertSpaces);
+					desiredIndent = ShiftCommand.shiftIndent(lineText, shiftColumn, tabSize, indentSize, insertSpaces);
 				}
+				desiredIndent += alignmentSpaces;
 
 				this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), desiredIndent);
 				if (lineNumber === startLine && !this._selection.isEmpty()) {

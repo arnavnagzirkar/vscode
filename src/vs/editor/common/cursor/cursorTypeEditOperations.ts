@@ -805,8 +805,9 @@ export class TabOperation {
 					indentSize: config.indentSize,
 					insertSpaces: config.insertSpaces,
 					useTabStops: config.useTabStops,
-					autoIndent: config.autoIndent
-				}, config.languageConfigurationService);
+						autoIndent: config.autoIndent,
+						preserveAlignmentSpaces: config.preserveAlignmentSpaces
+					}, config.languageConfigurationService);
 			}
 		}
 		return commands;

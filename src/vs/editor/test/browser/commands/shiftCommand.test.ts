@@ -996,4 +996,60 @@ suite('Editor Commands - ShiftCommand', () => {
 		}
 	});
 
+	test('issue #277764: preserveAlignmentSpaces on shift (insertSpaces=false)', () => {
+		function _assertShiftWithPreserve(tabSize: number, indentSize: number, lineText: string, expectedText: string): void {
+			return withEditorModel([lineText + 'aaa'], (model) => {
+				const testLanguageConfigurationService = new TestLanguageConfigurationService();
+				const op = new ShiftCommand(new Selection(1, 1, 2, 1), {
+					isUnshift: false,
+					tabSize: tabSize,
+					indentSize: indentSize,
+					insertSpaces: false,
+					useTabStops: true,
+					autoIndent: EditorAutoIndentStrategy.Full,
+					preserveAlignmentSpaces: true,
+				}, testLanguageConfigurationService);
+				const actual = getEditOperation(model, op);
+				assert.deepStrictEqual(actual, [createSingleEditOp(expectedText, 1, 1, 1, lineText.length + 1)]);
+				testLanguageConfigurationService.dispose();
+			});
+		}
+
+		function _assertUnshiftWithPreserve(tabSize: number, indentSize: number, lineText: string, expectedText: string): void {
+			return withEditorModel([lineText + 'aaa'], (model) => {
+				const testLanguageConfigurationService = new TestLanguageConfigurationService();
+				const op = new ShiftCommand(new Selection(1, 1, 2, 1), {
+					isUnshift: true,
+					tabSize: tabSize,
+					indentSize: indentSize,
+					insertSpaces: false,
+					useTabStops: true,
+					autoIndent: EditorAutoIndentStrategy.Full,
+					preserveAlignmentSpaces: true,
+				}, testLanguageConfigurationService);
+				const actual = getEditOperation(model, op);
+				assert.deepStrictEqual(actual, [createSingleEditOp(expectedText, 1, 1, 1, lineText.length + 1)]);
+				testLanguageConfigurationService.dispose();
+			});
+		}
+
+		// Shift: tab + alignment spaces -> add one more tab, preserve spaces
+		_assertShiftWithPreserve(4, 4, '\t  ', '\t\t  ');
+		_assertShiftWithPreserve(4, 4, '\t\t  ', '\t\t\t  ');
+		_assertShiftWithPreserve(4, 4, '\t   ', '\t\t   ');
+
+		// Shift: pure tabs -> no alignment spaces to preserve (normal behavior)
+		_assertShiftWithPreserve(4, 4, '\t', '\t\t');
+		_assertShiftWithPreserve(4, 4, '\t\t', '\t\t\t');
+
+		// Unshift: tab + alignment spaces -> remove one tab, preserve spaces
+		_assertUnshiftWithPreserve(4, 4, '\t  ', '  ');
+		_assertUnshiftWithPreserve(4, 4, '\t\t  ', '\t  ');
+		_assertUnshiftWithPreserve(4, 4, '\t\t   ', '\t   ');
+
+		// Unshift: pure tabs -> no alignment spaces to preserve (normal behavior)
+		_assertUnshiftWithPreserve(4, 4, '\t', '');
+		_assertUnshiftWithPreserve(4, 4, '\t\t', '\t');
+	});
+
 });

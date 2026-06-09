@@ -747,6 +747,12 @@ export interface IEditorOptions {
 	 */
 	useTabStops?: boolean;
 	/**
+	 * Controls whether trailing alignment spaces should be preserved when shifting lines.
+	 * Only has an effect when `insertSpaces` is false (tab indentation).
+	 * Defaults to false.
+	 */
+	preserveAlignmentSpaces?: boolean;
+	/**
 	 * Controls whether the editor should automatically remove indentation whitespace when joining lines with Delete.
 	 * Defaults to false.
 	 */
@@ -5945,7 +5951,8 @@ export const enum EditorOption {
 	effectiveEditContext,
 	scrollOnMiddleClick,
 	effectiveAllowVariableFonts,
-	doubleClickSelectsBlock
+	doubleClickSelectsBlock,
+	preserveAlignmentSpaces
 }
 
 export const EditorOptions = {
@@ -6746,6 +6753,10 @@ export const EditorOptions = {
 	useTabStops: register(new EditorBooleanOption(
 		EditorOption.useTabStops, 'useTabStops', true,
 		{ description: nls.localize('useTabStops', "Spaces and tabs are inserted and deleted in alignment with tab stops.") }
+	)),
+	preserveAlignmentSpaces: register(new EditorBooleanOption(
+		EditorOption.preserveAlignmentSpaces, 'preserveAlignmentSpaces', false,
+		{ description: nls.localize('preserveAlignmentSpaces', "When shifting lines with Tab or Shift+Tab, preserve trailing spaces used for alignment.") }
 	)),
 	wordBreak: register(new EditorStringEnumOption(
 		EditorOption.wordBreak, 'wordBreak',
