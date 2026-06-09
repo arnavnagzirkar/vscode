@@ -151,6 +151,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 		const grammarLocation = resources.joinPath(extension.description.extensionLocation, grammar.path);
 
 		const embeddedLanguages: IValidEmbeddedLanguagesMap = Object.create(null);
+		const embeddedLanguageIds: string[] = [];
 		if (grammar.embeddedLanguages) {
 			const scopes = Object.keys(grammar.embeddedLanguages);
 			for (let i = 0, len = scopes.length; i < len; i++) {
@@ -162,6 +163,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 				}
 				if (this._languageService.isRegisteredLanguageId(language)) {
 					embeddedLanguages[scope] = this._languageService.languageIdCodec.encodeLanguageId(language);
+					embeddedLanguageIds.push(language);
 				}
 			}
 		}
@@ -205,6 +207,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 			language: validLanguageId,
 			scopeName: grammar.scopeName,
 			embeddedLanguages: embeddedLanguages,
+			embeddedLanguageIds: embeddedLanguageIds,
 			tokenTypes: tokenTypes,
 			injectTo: grammar.injectTo,
 			balancedBracketSelectors: asStringArray(grammar.balancedBracketScopes, ['*']),

@@ -136,6 +136,19 @@ export class TMGrammarFactory extends Disposable {
 
 		const containsEmbeddedLanguages = (Object.keys(embeddedLanguages).length > 0);
 
+		// Collect unbalanced bracket selectors from embedded language grammars so that
+		// tokens like operators in embedded languages are not misidentified as brackets.
+		const unbalancedBracketSelectors = [...grammarDefinition.unbalancedBracketSelectors];
+		for (const embeddedLanguageId of grammarDefinition.embeddedLanguageIds) {
+			const embeddedScopeName = this._languageToScope.get(embeddedLanguageId);
+			if (embeddedScopeName) {
+				const embeddedGrammarDef = this._scopeRegistry.getGrammarDefinition(embeddedScopeName);
+				if (embeddedGrammarDef) {
+					unbalancedBracketSelectors.push(...embeddedGrammarDef.unbalancedBracketSelectors);
+				}
+			}
+		}
+
 		let grammar: IGrammar | null;
 
 		try {
@@ -147,7 +160,7 @@ export class TMGrammarFactory extends Disposable {
 					// eslint-disable-next-line local/code-no-any-casts
 					tokenTypes: <any>grammarDefinition.tokenTypes,
 					balancedBracketSelectors: grammarDefinition.balancedBracketSelectors,
-					unbalancedBracketSelectors: grammarDefinition.unbalancedBracketSelectors,
+					unbalancedBracketSelectors,
 				}
 			);
 		} catch (err) {

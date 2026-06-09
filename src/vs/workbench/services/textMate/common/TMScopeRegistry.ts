@@ -12,6 +12,7 @@ export interface IValidGrammarDefinition {
 	language?: string;
 	scopeName: string;
 	embeddedLanguages: IValidEmbeddedLanguagesMap;
+	embeddedLanguageIds: string[];
 	tokenTypes: IValidTokenTypeMap;
 	injectTo?: string[];
 	balancedBracketSelectors: string[];

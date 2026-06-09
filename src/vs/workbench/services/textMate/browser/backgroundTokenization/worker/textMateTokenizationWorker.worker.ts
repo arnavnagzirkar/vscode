@@ -30,6 +30,7 @@ export interface IValidGrammarDefinitionDTO {
 	language?: string;
 	scopeName: string;
 	embeddedLanguages: IValidEmbeddedLanguagesMap;
+	embeddedLanguageIds: string[];
 	tokenTypes: IValidTokenTypeMap;
 	injectTo?: string[];
 	balancedBracketSelectors: string[];
@@ -62,6 +63,7 @@ export class TextMateTokenizationWorker implements IWebWorkerServerRequestHandle
 				language: def.language,
 				scopeName: def.scopeName,
 				embeddedLanguages: def.embeddedLanguages,
+				embeddedLanguageIds: def.embeddedLanguageIds,
 				tokenTypes: def.tokenTypes,
 				injectTo: def.injectTo,
 				balancedBracketSelectors: def.balancedBracketSelectors,
