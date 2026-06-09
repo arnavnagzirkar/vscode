@@ -807,8 +807,8 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				return;
 			}
 
-			if (repository.kind === 'worktree') {
-				this.logger.trace('[Model][open] Automatic detection of git worktrees is not skipped.');
+			if (repository.kind === 'worktree' && !repository.dotGit.isBare) {
+				this.logger.trace('[Model][open] Automatic detection of git worktrees is skipped for non-bare repository worktrees.');
 				return;
 			}
 
