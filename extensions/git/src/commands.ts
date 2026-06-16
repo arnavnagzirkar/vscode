@@ -778,6 +778,25 @@ async function evaluateDiagnosticsCommitHook(repository: Repository, options: Co
 	return false;
 }
 
+/**
+ * For the default git error case (no recognized gitErrorCode), determines the
+ * notification type and which line to display given the parsed hint lines.
+ *
+ * Returns type 'warning' when all non-empty hint lines start with 'warning:'
+ * (e.g. SSH informational messages such as "warning: Permanently added
+ * 'gitlab.com' to the list of known hosts"). Returns type 'error' otherwise.
+ */
+export function getGitDefaultErrorNotification(hintLines: string[]): { type: 'error' | 'warning'; line: string | undefined } {
+	if (hintLines.length === 0) {
+		return { type: 'error', line: undefined };
+	}
+	const errorLine = hintLines.find(line => !/^warning:/i.test(line));
+	if (errorLine) {
+		return { type: 'error', line: errorLine };
+	}
+	return { type: 'warning', line: hintLines[0] };
+}
+
 export class CommandCenter {
 
 	private disposables: Disposable[];
@@ -5656,12 +5675,10 @@ export class CommandCenter {
 								: l10n.t('Git error');
 						} else {
 							// Skip "warning:" lines to find the real error; if only warnings exist, use warning styling
-							const errorLine = hintLines.find(line => !/^warning:/i.test(line));
-							if (errorLine) {
-								message = l10n.t('Git: {0}', errorLine);
-							} else if (hintLines.length > 0) {
-								type = 'warning';
-								message = l10n.t('Git: {0}', hintLines[0]);
+							const { type: notifType, line } = getGitDefaultErrorNotification(hintLines);
+							if (line) {
+								type = notifType;
+								message = l10n.t('Git: {0}', line);
 							} else {
 								message = l10n.t('Git error');
 							}

@@ -7,6 +7,7 @@ import 'mocha';
 import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
 import * as assert from 'assert';
 import { splitInChunks } from '../util';
+import { getGitDefaultErrorNotification } from '../commands';
 
 suite('git', () => {
 	suite('GitStatusParser', () => {
@@ -715,6 +716,53 @@ suite('git', () => {
 				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 9)],
 				[['0', '01', '012', '0', '01'], ['012', '0', '01', '012']]
 			);
+		});
+	});
+
+	suite('getGitDefaultErrorNotification', () => {
+		test('empty hint lines returns error type with no line', () => {
+			assert.deepStrictEqual(
+				getGitDefaultErrorNotification([]),
+				{ type: 'error', line: undefined }
+			);
+		});
+
+		test('only-warning lines returns warning type', () => {
+			const result = getGitDefaultErrorNotification([
+				"warning: Permanently added 'gitlab.com' to the list of known hosts."
+			]);
+			assert.deepStrictEqual(result, {
+				type: 'warning',
+				line: "warning: Permanently added 'gitlab.com' to the list of known hosts."
+			});
+		});
+
+		test('multiple warning lines returns warning type with first line', () => {
+			const result = getGitDefaultErrorNotification([
+				'warning: first warning',
+				'warning: second warning'
+			]);
+			assert.deepStrictEqual(result, { type: 'warning', line: 'warning: first warning' });
+		});
+
+		test('non-warning line returns error type with that line', () => {
+			const result = getGitDefaultErrorNotification([
+				'could not read Username for remote'
+			]);
+			assert.deepStrictEqual(result, { type: 'error', line: 'could not read Username for remote' });
+		});
+
+		test('warning lines followed by error line returns error type with error line', () => {
+			const result = getGitDefaultErrorNotification([
+				"warning: Permanently added 'gitlab.com' to the list of known hosts.",
+				'fatal: repository not found'
+			]);
+			assert.deepStrictEqual(result, { type: 'error', line: 'fatal: repository not found' });
+		});
+
+		test('warning prefix match is case-insensitive', () => {
+			const result = getGitDefaultErrorNotification(['WARNING: some info']);
+			assert.deepStrictEqual(result, { type: 'warning', line: 'WARNING: some info' });
 		});
 	});
 });
