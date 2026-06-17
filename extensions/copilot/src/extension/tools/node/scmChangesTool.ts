@@ -32,9 +32,12 @@ const MAX_CHANGED_FILES = 200;
  */
 const DIFF_RETRIEVAL_TIMEOUT_MS = 30_000; // 30 seconds
 
+type SourceControlState = 'unstaged' | 'staged' | 'merge-conflicts';
+
 interface IGetScmChangesToolParams {
 	repositoryPath?: string;
-	sourceControlState?: ('unstaged' | 'staged' | 'merge-conflicts')[];
+	// LLMs sometimes pass a single string instead of an array, so accept both
+	sourceControlState?: SourceControlState | SourceControlState[];
 }
 
 class GetScmChangesTool implements ICopilotTool<IGetScmChangesToolParams> {
@@ -79,8 +82,16 @@ class GetScmChangesTool implements ICopilotTool<IGetScmChangesToolParams> {
 
 		const changes = repository?.changes;
 		if (changes) {
-			if (options.input.sourceControlState) {
-				for (const state of options.input.sourceControlState) {
+			// Normalize sourceControlState to an array: LLMs sometimes pass a single string
+			// value when the schema expects an array (e.g. "staged" instead of ["staged"]).
+			const sourceControlStates = options.input.sourceControlState
+				? (Array.isArray(options.input.sourceControlState)
+					? options.input.sourceControlState
+					: [options.input.sourceControlState])
+				: undefined;
+
+			if (sourceControlStates) {
+				for (const state of sourceControlStates) {
 					switch (state) {
 						case 'staged':
 							changedFiles.push(...changes.indexChanges);
