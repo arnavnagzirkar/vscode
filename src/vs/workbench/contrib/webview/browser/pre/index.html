@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-GS709NQYK4Up8UI8C5iHse6z4zticcjPi0jiZP/65y8=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-F0tRYX5/kyoOCYXfKLL5451NaSptoJT6NvFdBTesQQM=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -79,6 +79,130 @@
 		const getActiveFrame = () => {
 			return /** @type {HTMLIFrameElement | undefined} */ (document.getElementById('active-frame'));
 		};
+
+		/**
+		 * The image element the context menu was last opened on, if any.
+		 * Used to make the "Copy" context-menu action copy an image even when nothing is selected.
+		 * @type {HTMLImageElement | undefined}
+		 */
+		let lastContextMenuImageTarget = undefined;
+
+		/** Timestamp (ms) of when {@link lastContextMenuImageTarget} was set. */
+		let lastContextMenuImageTargetTime = 0;
+
+		/** Timer that clears {@link lastContextMenuImageTarget} when the TTL expires. */
+		let lastContextMenuImageTargetTimer = undefined;
+
+		/** How long (ms) a remembered context-menu image target stays valid. */
+		const contextMenuImageTargetTtl = 5000;
+
+		/**
+		 * Remembers (or clears) the image the context menu was opened on.
+		 * The reference is dropped automatically after {@link contextMenuImageTargetTtl} to avoid
+		 * holding on to a detached DOM node.
+		 * @param {HTMLImageElement | undefined} image
+		 */
+		function setContextMenuImageTarget(image) {
+			clearTimeout(lastContextMenuImageTargetTimer);
+			lastContextMenuImageTargetTimer = undefined;
+			lastContextMenuImageTarget = image;
+			lastContextMenuImageTargetTime = image ? Date.now() : 0;
+			if (image) {
+				lastContextMenuImageTargetTimer = setTimeout(() => {
+					lastContextMenuImageTarget = undefined;
+					lastContextMenuImageTargetTime = 0;
+					lastContextMenuImageTargetTimer = undefined;
+				}, contextMenuImageTargetTtl);
+			}
+		}
+
+		/**
+		 * Copies an image to the clipboard as a bitmap.
+		 *
+		 * Runs inside the content frame's window so that the `clipboard-write` permission and the
+		 * frame's origin apply. Tries to draw the image to a canvas first, then falls back to
+		 * re-fetching the original bytes, and finally to copying the URL as text.
+		 *
+		 * @param {Window} frameWindow The content frame's window.
+		 * @param {HTMLImageElement} image The image element to copy.
+		 * @param {number} retries Remaining retries for the focus check.
+		 */
+		async function copyImageToClipboard(frameWindow, image, retries = 5) {
+			const frameDocument = frameWindow.document;
+
+			// `navigator.clipboard.write` requires the document to be focused. The copy can fire
+			// while focus is still returning to the webview, so nudge focus and retry briefly.
+			if (!frameDocument.hasFocus() && retries > 0) {
+				try {
+					frameWindow.focus();
+				} catch (e) {
+					// ignore - focusing is best effort
+				}
+				setTimeout(() => { copyImageToClipboard(frameWindow, image, retries - 1); }, 20);
+				return;
+			}
+
+			const clipboard = frameWindow.navigator.clipboard;
+			// Resolve `ClipboardItem` from the content frame's realm so the write runs there.
+			const ClipboardItemCtor = /** @type {typeof ClipboardItem | undefined} */ (/** @type {any} */ (frameWindow).ClipboardItem);
+			if (!clipboard || !ClipboardItemCtor) {
+				console.error('Cannot copy image: the clipboard API is not available in this webview.');
+				return;
+			}
+
+			try {
+				// Guard against very large images: canvas allocates 4 bytes (RGBA) per pixel.
+				const maxCanvasBytes = 256 * 1024 * 1024;
+				const maxCanvasDimension = 16384;
+				const width = image.naturalWidth;
+				const height = image.naturalHeight;
+				if (!width || !height
+					|| width > maxCanvasDimension || height > maxCanvasDimension
+					|| width * height * 4 > maxCanvasBytes) {
+					throw new Error('Image is too large to copy via canvas');
+				}
+				await clipboard.write([new ClipboardItemCtor({
+					'image/png': new Promise((resolve, reject) => {
+						const canvas = frameDocument.createElement('canvas');
+						canvas.width = width;
+						canvas.height = height;
+						const context = canvas.getContext('2d');
+						if (!context) {
+							reject(new Error('Could not get canvas context'));
+							return;
+						}
+						context.drawImage(image, 0, 0);
+						canvas.toBlob((blob) => {
+							if (blob) {
+								resolve(blob);
+							} else {
+								reject(new Error('Could not create image blob'));
+							}
+							canvas.remove();
+						}, 'image/png');
+					})
+				})]);
+			} catch (e) {
+				// Drawing to a canvas fails for cross-origin images (tainted canvas) or when the
+				// image is too large. Fall back to re-fetching the bytes, then to the URL as text.
+				// Prefer `currentSrc` so the result matches the rendered srcset/<picture> source.
+				const imageSrc = image.currentSrc || image.src;
+				try {
+					const response = await frameWindow.fetch(imageSrc);
+					const blob = response.ok ? await response.blob() : undefined;
+					if (!blob || !blob.type.startsWith('image/')) {
+						throw new Error('Fetched resource is not an image');
+					}
+					await clipboard.write([new ClipboardItemCtor({ [blob.type]: blob })]);
+				} catch (fetchError) {
+					try {
+						await clipboard.writeText(imageSrc);
+					} catch (textError) {
+						console.error(textError);
+					}
+				}
+			}
+		}
 
 		const getPendingFrame = () => {
 			return /** @type {HTMLIFrameElement | undefined} */ (document.getElementById('pending-frame'));
@@ -419,8 +543,6 @@
 		/** @type {any} */
 		let loadTimeout;
 		let styleVersion = 0;
-		/** @type {HTMLElement | null} */
-		let lastContextMenuTarget = null;
 
 		/** @type {Array<{ readonly message: any, transfer?: ArrayBuffer[] }>} */
 		let pendingMessages = [];
@@ -1180,7 +1302,10 @@
 
 						e.preventDefault();
 
-						lastContextMenuTarget = /** @type {HTMLElement | null} */ (e.target);
+						// Remember if the context menu was opened on an image so that the "Copy" action
+						// can copy the image even when there is no active selection.
+						const targetElement = /** @type {HTMLElement | null} */ (e.target);
+						setContextMenuImageTarget(/** @type {HTMLImageElement | undefined} */ (targetElement?.closest?.('img') ?? undefined));
 
 						/** @type { Record<string, boolean>} */
 						let context = {};
@@ -1261,25 +1386,25 @@
 				if (!target) {
 					return;
 				}
-				const doc = assertIsDefined(target.contentDocument);
-				if (data === 'copy' && lastContextMenuTarget instanceof HTMLImageElement && doc.contains(lastContextMenuTarget)) {
-					const contentWindow = assertIsDefined(target.contentWindow);
-					const selection = contentWindow.getSelection();
-					if (!selection || selection.isCollapsed) {
-						// The contextmenu was triggered on an image with no text selection.
-						// Select the image so execCommand('copy') copies it to the clipboard.
-						const range = doc.createRange();
-						range.selectNode(lastContextMenuTarget);
-						if (selection) {
-							selection.removeAllRanges();
-							selection.addRange(range);
-						}
+				const contentWindow = target.contentWindow;
+				const contentDocument = assertIsDefined(target.contentDocument);
+
+				// When copying with no active text selection but the context menu was opened on an
+				// image, copy the image bitmap to the clipboard directly. `execCommand('copy')` only
+				// copies the current selection and silently does nothing when it is empty (as it is
+				// for a right-clicked image with no prior selection).
+				if (data === 'copy' && contentWindow && lastContextMenuImageTarget && lastContextMenuImageTarget.ownerDocument === contentDocument) {
+					const image = lastContextMenuImageTarget;
+					const isFresh = Date.now() - lastContextMenuImageTargetTime <= contextMenuImageTargetTtl;
+					setContextMenuImageTarget(undefined);
+					const selection = contentDocument.getSelection();
+					if (isFresh && (!selection || selection.isCollapsed)) {
+						void copyImageToClipboard(contentWindow, image);
+						return;
 					}
 				}
-				// The content window must be focused for execCommand to work.
-				// When the VS Code context menu is showing, focus moves away from the content frame.
-				target.contentWindow?.focus();
-				doc.execCommand(data);
+
+				contentDocument.execCommand(data);
 			});
 
 			/** @type {string | undefined} */
