@@ -11,15 +11,15 @@ import { NullGitDiffService } from '../../../../platform/git/common/nullGitDiffS
 import { MockGitService } from '../../../../platform/ignore/node/test/mockGitService';
 import { ITestingServicesAccessor, TestingServiceCollection } from '../../../../platform/test/node/services';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
-import { Emitter } from '../../../../util/vs/base/common/event';
 import { observableValue } from '../../../../util/vs/base/common/observableInternal/observables/observableValue';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { Change, Repository } from '../../../../platform/git/vscode/git';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
+import { GetScmChangesTool } from '../scmChangesTool';
 
 class ConfigurableMockGitDiffService extends NullGitDiffService {
-	public getChangeDiffsSpy = vi.fn<Parameters<NullGitDiffService['getChangeDiffs']>, ReturnType<NullGitDiffService['getChangeDiffs']>>();
+	public getChangeDiffsSpy = vi.fn<NullGitDiffService['getChangeDiffs']>();
 
 	override async getChangeDiffs(repository: Repository | vscode.Uri, changes: Change[], token?: CancellationToken): Promise<Diff[]> {
 		this.getChangeDiffsSpy(repository, changes, token);
@@ -89,12 +89,11 @@ describe('GetScmChangesTool - sourceControlState normalization', () => {
 	});
 
 	async function invokeScmChangesTool(sourceControlState: unknown) {
-		const { GetScmChangesTool } = await import('../scmChangesTool');
 		const tool = accessor.get(IInstantiationService).createInstance(GetScmChangesTool);
 		await tool.invoke(
 			{
 				input: { sourceControlState } as { sourceControlState: ('unstaged' | 'staged' | 'merge-conflicts')[] },
-				toolInvocationToken: undefined as unknown as vscode.LanguageModelToolInvocationToken,
+				toolInvocationToken: null!,
 			},
 			CancellationToken.None
 		);

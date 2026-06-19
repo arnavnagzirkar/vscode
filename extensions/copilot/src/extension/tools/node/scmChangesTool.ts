@@ -40,7 +40,7 @@ interface IGetScmChangesToolParams {
 	sourceControlState?: SourceControlState | SourceControlState[];
 }
 
-class GetScmChangesTool implements ICopilotTool<IGetScmChangesToolParams> {
+export class GetScmChangesTool implements ICopilotTool<IGetScmChangesToolParams> {
 
 	public static readonly toolName = ToolName.GetScmChanges;
 
